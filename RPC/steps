@@ -1,0 +1,17 @@
+for server
+--------------------------------------------
+1.rpcgen fact.x
+2.gcc -o server.out -DPRC_SVC_FG server.c fact_svc.c
+3.gcc -o client.out client.c fact_clnt.c
+4. ./server.out
+
+---------------------------------------------
+for client
+1. ./client.out localhost
+
+---------------------------------------
+sudo -i service portmap stop
+sudo -i rpcbind -i -w
+sudo -i service portmap start
+-------------------------------------
+

@@ -1,0 +1,197 @@
+Ass6(maxcount)
+
+maxcount.java
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
+public class MaxCount extends Configured implements Tool
+{
+	public static void main(String[] args) throws Exception {
+		int res = ToolRunner.run(new Configuration(), new MaxCount() , args);
+		System.exit(res);
+	}
+	@Override
+	public int run(String[] args) throws Exception {
+		Configuration conf = getConf();
+		@SuppressWarnings("deprecation")
+		Job job = new Job(conf,"MaxCount");
+		job.setJarByClass(MaxCount.class);
+		job.setMapperClass(MaxMap.class);
+		job.setNumReduceTasks(0);
+		job.setMapOutputKeyClass(Text.class);
+		job.setMapOutputValueClass(IntWritable.class);
+		job.setInputFormatClass(org.apache.hadoop.mapreduce.lib.input.TextInputFormat.class);
+		job.setOutputFormatClass(TextOutputFormat.class);
+		FileInputFormat.setInputPaths(job, new Path(args[0]));FileOutputFormat.setOutputPath(job, new Path(args[1]));
+		Path outputpath = new Path(args[1]);
+		outputpath.getFileSystem(conf).delete(outputpath, true);
+		job.waitForCompletion(true);
+		FileSystem fs = FileSystem.get(conf);
+		FileStatus[] status = fs.listStatus(new Path(args[1]));
+		//copy hdfs output file to local file
+		for(int i=0;i<status.length;i++){
+			System.out.println(status[i].getPath());
+			fs.copyToLocalFile(false, status[i].getPath(), new
+					Path("/home/hduser/"+args[1]));
+		}
+		System.out.println("\nLine\tFirst\tSecond\tMaximum");
+		System.out.println("no \tColumn\tColumn\n");
+		//display contents of local file
+		BufferedReader br = new BufferedReader(new
+				FileReader("/home/hduser/"+args[1]));
+		String line = null;
+		while ((line = br.readLine()) != null) {
+			System.out.println(line);
+		}
+		br.close();
+		Scanner s = new Scanner(new File("/home/hduser/"+args[1]));
+		List<Integer> max_values = new ArrayList<Integer>();
+		while (s.hasNext())
+		{
+			s.next();
+			s.next();
+			s.next();
+			max_values.add(Integer.parseInt(s.next()));
+		}
+		int maximum=0;
+		for (int max: max_values)
+		{
+			if(max>maximum)
+			{
+				maximum=max;
+			}
+		}
+		System.out.println("\nOverall Maximum: "+maximum+"\n");
+		s.close();
+		return 0;
+	}
+}
+----------------------------------------------------------------------------------------
+maxmap.java
+
+import java.io.IOException;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+public class MaxMap extends Mapper<LongWritable, Text, Text, IntWritable>
+{
+	int values[] = new int[10000];
+	int values1[] = new int[10000];
+	String word[] ; int maxValue = 0,linenum =0;
+	public void map(LongWritable key, Text value, Context context) throws
+	IOException, InterruptedException
+	{
+		String words = value.toString();
+		System.out.println(words);
+		word = words.split(",");
+		for (int i = 0; i < 2; i++)
+		{
+			System.out.println(word[i]);
+			values[i] = Integer.parseInt(word[i]);
+			values1[i] = Integer.parseInt(word[i]);
+		}
+		if(values1[0] < values1[1])
+		{
+			int temp =values1[0];
+			values1[0] = values1[1];
+			values1[1] = temp;
+		}
+		maxValue = values1[0];
+		String text = ""+(linenum+1)+"\t"+values[0]+"\t"+values[1]+"";
+		if(linenum>=0)
+		{ context.write(new Text(text), new IntWritable(maxValue));
+		}
+		linenum++;
+	}
+}
+
+---------------------------------------------------------------------------------------------
+input.txt
+
+14,5,84,9,7,4,44,5,84,9
+4,39,79,44,5,88,4,50,53,4
+45,59,67,3,76,3,0,4,6,19
+7,9,6,9,27,0,0,14,53,64
+8,66,4,67,1,3,0,7,93,56
+77,41,56,12,10,4,7,23,7,99
+10,89,45,123,78,41,23,12,10,49
+7,5,22,14,78,43,55,41,10,13
+41,45,13,15,19,57,66,55,44,50
+44,888,89,49,27,48,33,88,84,65
+144,5,84,9,7,4,44,5,84,9
+4,396,79,44,5,88,4,50,53,4
+45,598,67,3,76,3,0,4,6,19
+7,9,6,96,27,0,0,14,53,64
+87,66,4,67,1,3,0,7,93,56
+79,41,56,12,10,4,7,23,7,99
+100,89,45,123,78,41,23,12,10,49
+7,501,22,14,78,43,55,41,10,13
+414,451,13,15,19,57,66,55,44,50
+444,1,89,49,27,48,33,88,84,65
+447,39,79,44,5,88,4,50,53,4
+45,596,67,3,76,3,0,4,6,19
+787,999,6,9,27,0,0,14,539,64
+8,66,4,67,1,3,0,7,936,5654
+777,541,56,12,10,4,7,23,7,99
+--------------------------------------------------------------------------------------------------
+
+Steps:
+
+1.start-all.sh
+2./usr/local/hadoop/bin/hadoop classpath
+3.javac -cp "copy classpath" *.java
+4.jar cf CharCount.jar *.class
+
+	input to hdfs
+---------------------------------------------------------------------------
+[cloudera@quickstart ~]$ hadoop fs -mkdir input
+[cloudera@quickstart ~]$ hadoop fs -put /home/cloudera/wordcount.txt input/
+[cloudera@quickstart ~]$ hadoop fs -ls input
+Found 1 items
+-rw-r--r--   1 cloudera cloudera         30 2015-03-24 20:23 input/wordcount.txt
+[cloudera@quickstart ~]$ hadoop fs -cat input/wordcount.txt
+Hello Hadoop, Goodbye Hadoop.
+[cloudera@quickstart ~]$ 
+----------------------------------------------------------------------------------
+
+			RUN MAPREDUCE JOB
+----------------------------------------------------------------------------------------------------------------------
+[cloudera@quickstart ~]$ hadoop jar /home/cloudera/WordCount.jar WordCount input/wordcount.txt output
+15/03/24 20:27:16 INFO client.RMProxy: Connecting to ResourceManager at quickstart.cloudera/127.0.0.1:8032
+15/03/24 20:27:16 INFO client.RMProxy: Connecting to ResourceManager at quickstart.cloudera/127.0.0.1:8032
+15/03/24 20:27:17 INFO mapred.FileInputFormat: Total input paths to process : 1
+15/03/24 20:27:17 INFO mapreduce.JobSubmitter: number of splits:2
+15/03/24 20:27:17 INFO mapreduce.JobSubmitter: Submitting tokens for job: job_1426957621065_0026
+15/03/24 20:27:17 INFO impl.YarnClientImpl: Submitted application application_1426957621065_0026
+15/03/24 20:27:17 INFO mapreduce.Job: The url to track the job: http://quickstart.cloudera:8088/proxy/application_1426957621065_0026/
+15/03/24 20:27:17 INFO mapreduce.Job: Running job: job_1426957621065_0026
+15/03/24 20:27:31 INFO mapreduce.Job: Job job_1426957621065_0026 running in uber mode : false
+15/03/24 20:27:31 INFO mapreduce.Job:  map 0% reduce 0%
+15/03/24 20:27:45 INFO mapreduce.Job:  map 100% reduce 0%
+15/03/24 20:27:57 INFO mapreduce.Job:  map 100% reduce 100%
+
+--------------------------------------------------------------------------------------------------
+
+					Output
+----------------------------------------------------------------------------------------------------
+Here is our output from the MR run:
+[cloudera@quickstart ~]$ hadoop fs -ls output Found 2 items -rw-r--r-- 1 cloudera cloudera 0 2015-03-24 20:27 output/_SUCCESS -rw-r--r-- 1 cloudera cloudera 38 2015-03-24 20:27 output/part-00000 [cloudera@quickstart ~]$ hadoop fs -cat output/part-00000 Goodbye 1 Hadoop, 1 Hadoop. 1 Hello 1
+---------------------------------------------------------------------------------------------------------
